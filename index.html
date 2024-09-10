@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-900">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cloud NAT Architectural Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <style>
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+      .pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+    </style>
+  </head>
+  <body class="h-full text-gray-300">
+    <div class="min-h-full">
+      <header class="bg-gray-800 shadow">
+        <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <h1 class="text-3xl font-bold tracking-tight text-white">
+            Cloud NAT Architectural Calculator
+          </h1>
+        </div>
+      </header>
+      <main class="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
+        <div class="flex flex-col space-y-6">
+          <!-- Internet -->
+          <div class="bg-gray-800 p-4 rounded-lg text-center">
+            <h3 class="text-lg font-medium text-white">Internet</h3>
+          </div>
+
+          <!-- Arrow -->
+          <div class="flex justify-center">
+            <i data-feather="arrow-down" class="w-6 h-6 text-gray-500"></i>
+          </div>
+
+          <!-- NAT Gateway -->
+          <div class="bg-gray-800 p-4 rounded-lg">
+            <h3 class="text-lg font-medium text-white mb-4 text-center">
+              NAT Gateway
+            </h3>
+            <div class="flex items-center justify-center space-x-4 mb-4">
+              <button
+                onclick="updateIPs(-1)"
+                class="px-3 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              >
+                -
+              </button>
+              <input
+                type="number"
+                id="ipCount"
+                value="2"
+                min="1"
+                onchange="updateDisplay()"
+                class="block w-20 rounded-md border-gray-600 bg-gray-700 text-white shadow-sm focus:border-gray-500 focus:ring-gray-500 sm:text-sm"
+              />
+              <button
+                onclick="updateIPs(1)"
+                class="px-3 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              >
+                +
+              </button>
+            </div>
+            <div
+              id="ipAddresses"
+              class="flex flex-wrap justify-center gap-4"
+            ></div>
+            <div class="mt-4">
+              <label
+                for="maxPortsPerVM"
+                class="block text-sm font-medium text-gray-300"
+                >Max Ports per VM: <span id="maxPortsValue">1024</span></label
+              >
+              <input
+                type="range"
+                id="maxPortsPerVM"
+                min="1024"
+                max="32768"
+                step="512"
+                value="1024"
+                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                oninput="updateMaxPorts()"
+              />
+            </div>
+          </div>
+
+          <!-- Arrow -->
+          <div class="flex justify-center">
+            <i data-feather="arrow-down" class="w-6 h-6 text-gray-500"></i>
+          </div>
+
+          <!-- VMs -->
+          <div class="bg-gray-800 p-4 rounded-lg">
+            <h3 class="text-lg font-medium text-white mb-4 text-center">
+              Virtual Machines
+            </h3>
+            <div id="vmBoxes" class="flex flex-wrap justify-center gap-4"></div>
+          </div>
+
+          <!-- Results -->
+          <div id="result" class="bg-gray-800 p-4 rounded-lg shadow">
+            <h3 class="text-lg font-medium text-white mb-4">
+              Configuration Summary
+            </h3>
+            <!-- Results will be inserted here by JavaScript -->
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const PORTS_PER_IP = 64512;
+
+      function calculateMaxVMs(ipCount, maxPortsPerVM) {
+        return Math.floor((ipCount * PORTS_PER_IP) / maxPortsPerVM);
+      }
+
+      function calculateRequiredIPs(vmCount, maxPortsPerVM) {
+        return Math.ceil((vmCount * maxPortsPerVM) / PORTS_PER_IP);
+      }
+
+      function updateIPs(change) {
+        const ipCountEl = document.getElementById('ipCount');
+        ipCountEl.value = Math.max(1, parseInt(ipCountEl.value) + change);
+        updateDisplay();
+      }
+
+      function updateMaxPorts() {
+        const maxPortsEl = document.getElementById('maxPortsPerVM');
+        const maxPortsValue = document.getElementById('maxPortsValue');
+        maxPortsValue.textContent = maxPortsEl.value;
+        updateDisplay();
+      }
+
+      function updateDisplay() {
+        const ipCountEl = document.getElementById('ipCount');
+        const maxPortsPerVMEl = document.getElementById('maxPortsPerVM');
+
+        let ipCount = parseInt(ipCountEl.value);
+        let maxPortsPerVM = parseInt(maxPortsPerVMEl.value);
+
+        // Calculate max possible VMs based on current IP count and max ports
+        const maxPossibleVMs = calculateMaxVMs(ipCount, maxPortsPerVM);
+
+        updateIPDisplay(ipCount);
+        updateVMDisplay(maxPossibleVMs);
+        updateCalculations(ipCount, maxPossibleVMs, maxPortsPerVM);
+      }
+
+      function updateIPDisplay(ipCount) {
+        const ipAddressesEl = document.getElementById('ipAddresses');
+        ipAddressesEl.innerHTML = '';
+        for (let i = 0; i < ipCount; i++) {
+          const ipEl = document.createElement('div');
+          ipEl.className = 'flex flex-col items-center';
+          ipEl.innerHTML = `
+                    <i data-feather="hard-drive" class="w-8 h-8 text-gray-400"></i>
+                    <div class="text-sm font-medium text-gray-300">IP ${
+                      i + 1
+                    }</div>
+                    <div class="text-xs text-gray-400">${PORTS_PER_IP} ports</div>
+                `;
+          ipAddressesEl.appendChild(ipEl);
+        }
+        feather.replace();
+      }
+
+      function updateVMDisplay(vmCount) {
+        const vmBoxesEl = document.getElementById('vmBoxes');
+        vmBoxesEl.innerHTML = '';
+        const vmGroups = Math.ceil(vmCount / 10);
+        for (let i = 0; i < vmGroups; i++) {
+          const groupEl = document.createElement('div');
+          groupEl.className =
+            'flex flex-col items-center bg-gray-700 p-2 rounded-lg';
+          const vmsInGroup = i === vmGroups - 1 ? vmCount % 10 || 10 : 10;
+          groupEl.innerHTML = `
+                    <i data-feather="server" class="w-8 h-8 text-gray-400 mb-1"></i>
+                    <div class="text-sm font-medium text-gray-300">${vmsInGroup} VMs</div>
+                `;
+          vmBoxesEl.appendChild(groupEl);
+        }
+        feather.replace();
+      }
+
+      function updateCalculations(ipCount, vmCount, maxPortsPerVM) {
+        const totalPorts = ipCount * PORTS_PER_IP;
+        const maxSupportedVMs = calculateMaxVMs(ipCount, maxPortsPerVM);
+        const requiredIPs = calculateRequiredIPs(vmCount, maxPortsPerVM);
+
+        const result = document.getElementById('result');
+        result.innerHTML = `
+                <h3 class="text-lg font-medium text-white mb-4">Configuration Summary</h3>
+                <ul class="list-disc pl-5 space-y-2 text-sm text-gray-300">
+                    <li>NAT Gateway has <strong>${ipCount}</strong> IP address(es)</li>
+                    <li>Each VM is allocated <strong>${maxPortsPerVM}</strong> ports</li>
+                    <li>Total available ports: <strong>${totalPorts}</strong></li>
+                    <li>Current configuration supports <strong>${maxSupportedVMs}</strong> VMs</li>
+                    <li>To support ${vmCount} VM(s), you need <strong>${requiredIPs}</strong> IP address(es)</li>
+                </ul>
+            `;
+      }
+
+      // Initial setup
+      feather.replace();
+      updateDisplay();
+    </script>
+  </body>
+</html>
